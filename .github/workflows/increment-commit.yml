@@ -19,9 +19,26 @@ jobs:
     - name: Read current value and increment
       id: increment
       run: |
+        # Display environment info (as requested in problem statement)
+        echo "Environment variables available:"
+        echo "- GITHUB_TOKEN: ${GITHUB_TOKEN:0:8}..." 
+        echo "- GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
+        echo "- GITHUB_ACTOR: $GITHUB_ACTOR"
+        
         # Read current value from numeral.txt
-        current_value=$(cat numeral.txt)
+        if [ -f numeral.txt ]; then
+          current_value=$(cat numeral.txt)
+        else
+          current_value=0
+          echo "numeral.txt not found, starting with 0"
+        fi
         echo "Current value: $current_value"
+        
+        # Validate current value is numeric
+        if ! [[ "$current_value" =~ ^[0-9]+$ ]]; then
+          echo "Invalid value in numeral.txt, resetting to 0"
+          current_value=0
+        fi
         
         # Increment the value
         new_value=$((current_value + 1))
@@ -46,6 +63,8 @@ jobs:
         
         echo "current_value=$current_value" >> $GITHUB_OUTPUT
         echo "new_value=$new_value" >> $GITHUB_OUTPUT
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Commit changes
       if: steps.increment.outputs.should_commit == 'true'

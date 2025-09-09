@@ -1,0 +1,85 @@
+name: Increment Numeral with Random Commits
+
+on:
+  schedule:
+    # Run every 2 hours (12 times per day)
+    - cron: '0 */2 * * *'
+  workflow_dispatch: # Allow manual triggering for testing
+
+jobs:
+  increment-numeral:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Read current value and increment
+      id: increment
+      run: |
+        # Display environment info (as requested in problem statement)
+        echo "Environment variables available:"
+        echo "- GITHUB_TOKEN: ${GITHUB_TOKEN:0:8}..." 
+        echo "- GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
+        echo "- GITHUB_ACTOR: $GITHUB_ACTOR"
+        
+        # Read current value from numeral.txt
+        if [ -f numeral.txt ]; then
+          current_value=$(cat numeral.txt)
+        else
+          current_value=0
+          echo "numeral.txt not found, starting with 0"
+        fi
+        echo "Current value: $current_value"
+        
+        # Validate current value is numeric
+        if ! [[ "$current_value" =~ ^[0-9]+$ ]]; then
+          echo "Invalid value in numeral.txt, resetting to 0"
+          current_value=0
+        fi
+        
+        # Increment the value
+        new_value=$((current_value + 1))
+        echo "New value: $new_value"
+        
+        # Write new value back to file
+        echo $new_value > numeral.txt
+        
+        # Generate random number between 1-100
+        random_num=$((1 + RANDOM % 100))
+        echo "Random number: $random_num"
+        
+        # Set commit probability to ~35% (targeting 4.2 commits per day on average)
+        # This should result in 1-7 commits per day with natural variability
+        if [ $random_num -le 35 ]; then
+          echo "should_commit=true" >> $GITHUB_OUTPUT
+          echo "Will commit this increment"
+        else
+          echo "should_commit=false" >> $GITHUB_OUTPUT
+          echo "Skipping commit this time"
+        fi
+        
+        echo "current_value=$current_value" >> $GITHUB_OUTPUT
+        echo "new_value=$new_value" >> $GITHUB_OUTPUT
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Commit changes
+      if: steps.increment.outputs.should_commit == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add numeral.txt
+        git commit -m "Auto-increment: ${{ steps.increment.outputs.current_value }} → ${{ steps.increment.outputs.new_value }}"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Log action result
+      run: |
+        echo "Action completed:"
+        echo "- Previous value: ${{ steps.increment.outputs.current_value }}"
+        echo "- New value: ${{ steps.increment.outputs.new_value }}"
+        echo "- Committed: ${{ steps.increment.outputs.should_commit }}"
